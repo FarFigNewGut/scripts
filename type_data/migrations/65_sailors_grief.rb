@@ -1,24 +1,24 @@
 migrate :aggressive_npc do
-  insert(:name, %{algae-draped merrow oracle})
-  insert(:name, %{amaranthine kraken tentacle})
-  insert(:name, %{blubbery humpbacked merrow})
-  insert(:name, %{brackish bilge mass})
-  insert(:name, %{fulminating stormborn primordial})
-  insert(:name, %{gigantic lightning whelk})
-  insert(:name, %{grey-plumed steelwing harpy})
-  insert(:name, %{hapless charmed corsair})
-  insert(:name, %{kelp-tangled coral golem})
-  insert(:name, %{scaly needle-toothed trenchling})
+  insert(:name, %{(?:algae-draped )?merrow oracle})
+  insert(:name, %{(?:amaranthine )?kraken tentacle})
+  insert(:name, %{(?:blubbery )?humpbacked merrow})
+  insert(:name, %{(?:fulminating )?stormborn primordial})
+  insert(:name, %{(?:gigantic )?lightning whelk})
+  insert(:name, %{(?:grey-plumed )?steelwing harpy})
+  insert(:name, %{(?:hapless )?charmed corsair})
+  insert(:name, %{(?:kelp-tangled )?coral golem})
+  insert(:name, %{(?:scaly )?needle-toothed trenchling})
 end
 
 migrate :undead, :aggressive_npc do
-  insert(:name, %{garish revenant buccaneer})
-  insert(:name, %{milky-eyed drowned mariner})
-  insert(:name, %{pallid fog-cloaked kelpie})
+  insert(:name, %{(?:garish )?revenant buccaneer})
+  insert(:name, %{(?:milky-eyed )?drowned mariner})
+  insert(:name, %{(?:pallid )?fog-cloaked kelpie})
 end
 
 migrate :undead, :aggressive_npc, :noncorporeal do
-  insert(:name, %{tenebrific wraith shark})
+  insert(:name, %{(?:brackish )?bilge mass})
+  insert(:name, %{(?:tenebrific )?wraith shark})
 end
 
 migrate :gem, :gemshop do
@@ -42,9 +42,13 @@ migrate :gem, :gemshop do
   insert(:name, %{indigo seastone orb})
   insert(:name, %{metallic chunk of galena})
   insert(:name, %{mottled algae chalcedony})
+  insert(:name, %{pale nautilus half-shell})
   insert(:name, %{plum-flecked ruby zoisite})
+  insert(:name, %{porous muddy brown rhyolite})
   insert(:name, %{porous oily black stone})
+  insert(:name, %{ribbon-banded cabochon rodochrosite})
   insert(:name, %{rosette rhodonite block})
+  insert(:name, %{rust-hued grey lapis crucifer})
   insert(:name, %{sanguine pyrope teardrop})
   insert(:name, %{scaled indigo ammolite})
   insert(:name, %{smooth dolphin stone disc})
