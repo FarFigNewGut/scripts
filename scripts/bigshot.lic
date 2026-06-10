@@ -8,8 +8,8 @@
   contributors: SpiffyJr, Tillmen, Kalros, Hazado, Tysong, Athias, Falicor, Deysh, Nisugi
           game: Gemstone
           tags: hunting, bigshot, combat
-       version: 5.11.4
-      required: Lich >= 5.13.0
+       version: 5.13.0
+      required: Lich >= 5.17.1
 
   Setup Instructions: https://gswiki.play.net/Script_Bigshot
       Full Changelog: https://gswiki.play.net/Script_Bigshot/Changelog
@@ -17,6 +17,28 @@
 
   Version Control:
   Major_change.feature_addition.bugfix
+  v5.13.0  (2026-05-17)
+    - add new resonance command for casting bolts
+    - add new UNHIDE event to allow for unhiding before fogging
+  v5.12.8  (2026-05-14)
+    - use gameobj id for wandolier instead of name after being found
+  v5.12.7  (2026-05-07)
+    - allow for wandolier command to take a noreserve option, defaults to use RESERVE system
+  v5.12.6  (2026-05-02)
+    - fix for boundary building to set a new status while building boundary list, useful for scripts like teleport.lic
+  v5.12.5  (2026-04-22)
+    - fix final_loot to now work for solo as well, helps pickup left behind loot by other players, poof'd creature loot, etc.
+  v5.12.4  (2026-04-10)
+    - fix for cmd_tether spell hindrance loop
+  v5.12.3  (2026-03-25)
+    - change to wander_stance if single_stop called (bigshot quick)
+  v5.12.2  (2026-03-11)
+    - fix to catch max inventory quantity item messaging
+    - fix in cmd_depress for result check
+  v5.12.1  (2026-02-08)
+    - fix for cast_signs/cmd_rapid to prevent double casting due to 0sec castRT.
+  v5.12.0  (2026-02-08)
+    - add ES/EB/EC/ED for spell, buff, cooldown, and debuff command checks
   v5.11.4  (2026-01-14)
     - add splashy command check for Rooms that are splashy(wet)
     - add essence command check to check for sorcerer shadow essence
@@ -354,7 +376,7 @@
 lich_gem_requires = Script.list.find { |x| x.name == Script.current.name }.inspect[/required: Lich >= (\d+\.\d+\.\d+)/i, 1]
 
 if Gem::Version.new(LICH_VERSION) < Gem::Version.new(lich_gem_requires)
-  if $frontend == 'stormfront' || $frontend == 'profanity'
+  if %w[stormfront wrayth profanity].include?($frontend)
     _respond "\<preset id=\"speech\"\>" + "########################################" + "\<\/preset\>"
     _respond "\<preset id=\"thought\"\>" + "Script:#{script.name} now requires a newer version of Lich(#{lich_gem_requires}+) to run." + "\<\/preset\>"
     _respond "\<preset id=\"thought\"\>" + "Please update to a newer version." + "\<\/preset\>"
@@ -546,7 +568,7 @@ class Bigshot
                     :HUNTING_SCRIPTS_STOP, :RESTING_SCRIPTS_START, :RESTING_PREP_COMMANDS, :DISPLAY_WATCH, :START_WATCH, :STOP_WATCH, :SINGLE_STOP,
                     :FOLLOWER_OVERKILL, :STAY_QUIET, :FOLLOW_NOW, :LOOT, :CUSTOM_PUT, :CUSTOM_CMD, :CUSTOM_DO_CLIENT,
                     :PUBLIC_SEND, :GO2_WAYPOINTS, :GO2_RESTING_ROOM, :GO2_RALLY_ROOM, :GO2_HUNTING_ROOM, :CHECK_MIND, :FOG_RETURN, :CHECK_SNEAKY,
-                    :LEAVE_GROUP, :HUNT_MONITOR_START, :HUNT_MONITOR_STOP]
+                    :LEAVE_GROUP, :HUNT_MONITOR_START, :HUNT_MONITOR_STOP, :UNHIDE]
 
     def initialize(type, time_stamp, room_id, c_in = nil)
       raise "Event type not recognized" unless @@RECOGNIZED.include?(type)
@@ -1430,7 +1452,7 @@ class Bigshot
       </packing></child><child><object class="GtkLabel"><property name="visible">True</property><property name="can-focus">False</property><property name="halign">end</property><property name="margin-start">10</property><property name="label" translatable="yes">Primary Looter</property></object><packing><property name="left-attach">0</property><property name="top-attach">5</property></packing></child><child><object class="GtkCheckButton" id="random_loot"><property name="label" translatable="yes">Loot randomly based on lowest encumbrance</property><property name="visible">True</property><property name="can-focus">True</property><property name="receives-default">False</property><property name="halign">start</property><property name="margin-start">10</property><property name="margin-top">10</property><property name="draw-indicator">True</property>
       </object><packing><property name="left-attach">0</property><property name="top-attach">3</property><property name="width">2</property></packing></child><child><object class="GtkCheckButton" id="independent_travel"><property name="label" translatable="yes">Travel TO hunting grounds independently</property><property name="visible">True</property><property name="can-focus">True</property><property name="receives-default">False</property><property name="halign">start</property><property name="margin-start">10</property><property name="margin-top">10</property><property name="draw-indicator">True</property>
       </object><packing><property name="left-attach">0</property><property name="top-attach">0</property><property name="width">2</property></packing></child><child><object class="GtkCheckButton" id="independent_return"><property name="label" translatable="yes">Travel FROM hunting grounds independently</property><property name="visible">True</property><property name="can-focus">True</property><property name="receives-default">False</property><property name="halign">start</property><property name="margin-start">10</property><property name="margin-top">10</property><property name="draw-indicator">True</property>
-      </object><packing><property name="left-attach">0</property><property name="top-attach">1</property><property name="width">2</property></packing></child><child><object class="GtkCheckButton" id="final_loot"><property name="label" translatable="yes">Leader performs a final loot before leaving the room</property><property name="visible">True</property><property name="can-focus">True</property><property name="receives-default">False</property><property name="halign">start</property><property name="margin-start">10</property><property name="margin-top">10</property><property name="margin-bottom">10</property><property name="draw-indicator">True</property>
+      </object><packing><property name="left-attach">0</property><property name="top-attach">1</property><property name="width">2</property></packing></child><child><object class="GtkCheckButton" id="final_loot"><property name="label" translatable="yes">Leader(MA) or solo performs a final loot before leaving the room</property><property name="visible">True</property><property name="can-focus">True</property><property name="receives-default">False</property><property name="halign">start</property><property name="margin-start">10</property><property name="margin-top">10</property><property name="margin-bottom">10</property><property name="draw-indicator">True</property>
       </object><packing><property name="left-attach">0</property><property name="top-attach">4</property><property name="width">2</property></packing></child><child><object class="GtkCheckButton" id="group_deader"><property name="label" translatable="yes">Stop for dead group members</property><property name="visible">True</property><property name="can-focus">True</property><property name="receives-default">False</property><property name="halign">start</property><property name="margin-start">10</property><property name="margin-top">10</property><property name="draw-indicator">True</property>
       </object><packing><property name="left-attach">0</property><property name="top-attach">2</property><property name="width">2</property></packing></child></object></child><child type="label"><object class="GtkLabel"><property name="visible">True</property><property name="can-focus">False</property><property name="label" translatable="yes">MA Grouping</property></object></child></object><packing><property name="left-attach">2</property><property name="top-attach">4</property><property name="width">2</property>
       </packing></child><child><placeholder/></child><child><placeholder/></child><child><placeholder/></child><child><placeholder/></child><child><placeholder/></child><child><placeholder/></child><child><placeholder/></child><child><placeholder/></child><child><placeholder/></child><child><placeholder/></child><child><placeholder/></child><child><placeholder/></child></object><packing><property name="expand">False</property><property name="fill">True</property><property name="position">1</property></packing>
@@ -1799,6 +1821,8 @@ class Bigshot
       self['never_loot'].tooltip_text = 'List of characters that should never loot'
       # Random looting based on character with the lowest overall encumbrance
       self['random_loot'].tooltip_text = 'Random looting based on the character with the lowest overall encumbrance'
+      # Leader performs a final loot before leaving the room
+      self['final_loot'].tooltip_text = 'Will loot on the leader before moving on to a new room, works in both MA and solo. Will help scavenge the room before moving on if loot is present (dropped from poofed creatures, loot left behind by others, etc)'
 
       # Monitoring Tab
 
@@ -2355,6 +2379,9 @@ class Bigshot
         $bigshot_cast902 = true
       elsif server_string =~ /The scintillating.*?light surrounding the <a exist=".*?" noun=".*?">.*?<\/a> fades away./i
         $bigshot_cast411 = true
+      elsif server_string.is_a?(String) && strip_xml(server_string.dup, type: 'bigshot') =~ /^You are unable to hold the number of items |^You note some treasure of interest but are unable to pick any up\.|^At your touch, the lit sigils marking your .+ ignite, then quickly sputter out again\./
+        $bigshot_should_rest = true
+        $rest_reason = 'Too many items'
       end
       server_string
     }
@@ -2572,7 +2599,7 @@ class Bigshot
   end
 
   def initialize_command_data
-    @COMMAND_MODIFIER_REGEX = /\((.*?(?:!?506|!?ancient|!?animate|!?barrage|!?bearhug|buff|!?burst|!?celerity|censer|!?coupdegrace|!?disease|!?e|!?essence|!?frozen|!?flurry|!?flying|!?fury|!?garrote|!?h|!?hidden|!?holler|!?justice|!?k|!?m|!?mob|!?momentum|!?noncorporeal|once|!?outside|!?pcs|!?poison|!?prone|!?pummel|!?rapid|!?rebuke|!?reflex|room|!?rooted|!?s|!?scourge|!?shout|!?splashy|!?surge|!?tailwind|!?tier|!?tier1|!?tier2|!?tier3|!?thrash|!?undead|!?v|!?valid|!?vigor|!?voidweaver|!?yowlp).*?)\)$/i.freeze
+    @COMMAND_MODIFIER_REGEX = /\((.*?(?:!?506|!?ancient|!?animate|!?barrage|!?bearhug|buff|!?burst|!?celerity|censer|!?coupdegrace|!?disease|!?EB"[^"]*"|!?EC"[^"]*"|!?ED"[^"]*"|!?ES"[^"]*"|!?e|!?essence|!?frozen|!?flurry|!?flying|!?fury|!?garrote|!?h|!?hidden|!?holler|!?justice|!?k|!?m|!?mob|!?momentum|!?noncorporeal|once|!?outside|!?pcs|!?poison|!?prone|!?pummel|!?rapid|!?rebuke|!?reflex|room|!?rooted|!?s|!?scourge|!?shout|!?splashy|!?surge|!?tailwind|!?tier|!?tier1|!?tier2|!?tier3|!?thrash|!?undead|!?v|!?valid|!?vigor|!?voidweaver|!?yowlp).*?)\)$/i.freeze
 
     @COMMAND_AMOUNT_REGEX = /((?:!?e|!?h|!?k|!?m|!?mob|!?s|!?tier|!?v|!?valid))(\d+)/i.freeze
 
@@ -2667,8 +2694,14 @@ class Bigshot
     convert_from_uid
 
     unless $bigshot_quick
-      @inbounds = BSAreaRooms.new(@HUNTING_ROOM_ID, @HUNTING_BOUNDARIES)
-      @inbounds.build
+      before_status = $bigshot_status
+      begin
+        $bigshot_status = :boundary_building
+        @inbounds = BSAreaRooms.new(@HUNTING_ROOM_ID, @HUNTING_BOUNDARIES)
+        @inbounds.build
+      ensure
+        $bigshot_status = before_status
+      end
     end
 
     # initialize group module
@@ -3336,6 +3369,8 @@ class Bigshot
     # Perform the command
     if (command =~ /^(incant)?\s?(\d+)\s?((?:open|closed)?\s?(?:cast|channel|evoke)?\s?(?:cast|channel|evoke)?\s?(?:open|closed)?\s?(?:acid|air|cold|earth|fire|lightning|steam|water)?)?.*$/i)
       cmd_spell(incant: $1, id: $2.to_i, extra: $3, target: npc)
+    elsif (command =~ /^resonance\s+([\d\s]+)/i)
+      cmd_resonance_bolt($1)
     elsif (command =~ /^barrage|^flurry|^fury|^gthrusts|^pummel|^thrash/i)
       cmd_assault(npc, command)
     elsif (command =~ /^pindown|^cripple|^charge|^twinhammer|^dizzyingswing|^clash|^volley|^pulverize|^cyclone|^whirlwind|^wblade/i)
@@ -3360,7 +3395,7 @@ class Bigshot
       cmd_weed(command, npc)
     elsif (command =~ /^wand\b/i)
       cmd_wand(npc)
-    elsif (command =~ /^wandolier\s?(\w+)?/i)
+    elsif (command =~ /^wandolier((?:\s+\w+){0,2})/i)
       cmd_wandolier(npc, $1)
     elsif (command =~ /^hide\s?(\d+)?/i)
       cmd_hide($1.to_i)
@@ -3461,7 +3496,7 @@ class Bigshot
     return false unless match
 
     command = match[1].strip
-    modifiers = command.split(" ")
+    modifiers = command.scan(/(?:[^\s"]|"[^"]*")+/)
 
     # Process each modifier
     modifiers.each do |modifier|
@@ -3497,6 +3532,23 @@ class Bigshot
   end
 
   def check_state_condition(modifier, command, npc, original_command)
+    # Generic Effects checks: ES"text", EB"text", EC"text", ED"text" (and negated !ES, !EB, !EC, !ED)
+    if (effects_match = modifier.match(/^(!?E[SBCD])"(.+)"$/i))
+      check_type = effects_match[1].upcase
+      text = effects_match[2]
+      pattern = /#{text}/i
+      case check_type
+      when 'ES'  then return !Effects::Spells.active?(pattern)
+      when '!ES' then return Effects::Spells.active?(pattern)
+      when 'EB'  then return !Effects::Buffs.active?(pattern)
+      when '!EB' then return Effects::Buffs.active?(pattern)
+      when 'EC'  then return !Effects::Cooldowns.active?(pattern)
+      when '!EC' then return Effects::Cooldowns.active?(pattern)
+      when 'ED'  then return !Effects::Debuffs.active?(pattern)
+      when '!ED' then return Effects::Debuffs.active?(pattern)
+      end
+    end
+
     case modifier.downcase
     # Active spell/effect checks
     when '506'        then !Spell[506].active?
@@ -3907,10 +3959,10 @@ class Bigshot
     else
       waitrt?
       waitcastrt?
-      result = dothistimeout 'renew 1015', 3, /Renewing "Song of Depression" for 6 mana.|But you are not singing that spellsong./
-      if result =~ /But you are not singing that spellsong./
+      result = dothistimeout('renew 1015', 3, /Renewing "Song of Depression" for 6 mana.|But you are not singing that spellsong./)
+      if result.is_a?(String) && result =~ /But you are not singing that spellsong./
         Spell[1015].force_incant if Spell[1015].affordable?
-      else
+      elsif result.nil?
         echo("Did not match renew messaging, report above lines to Elanthia-Online")
       end
       waitrt?
@@ -4814,6 +4866,20 @@ class Bigshot
     end
   end
 
+  def cmd_resonance_bolt(ids)
+    @last ||= nil
+    debug_msg(@DEBUG_COMMANDS, "cmd_resonance_bolt | ids: #{ids} | last: #{@last}")
+
+    spell_options = ids.split.map(&:to_i).uniq - [@last]
+
+    selected_spell = spell_options.sample
+    return if selected_spell.nil?
+
+    cmd_spell(incant: true, id: selected_spell)
+
+    @last = selected_spell
+  end
+
   def cmd_wand(target)
     debug_msg(@DEBUG_COMMANDS, "cmd_wand | target: #{target}")
 
@@ -4854,13 +4920,20 @@ class Bigshot
     end
   end
 
-  def cmd_wandolier(target, stance)
-    debug_msg(@DEBUG_COMMANDS, "cmd_wandolier | target: #{target} | stance: #{stance}")
-    if stance.empty? || stance.nil?
-      stance = 'offensive'
-    end
+  def cmd_wandolier(target, args)
+    debug_msg(@DEBUG_COMMANDS, "cmd_wandolier | target: #{target} | args: #{args}")
+    tokens    = args.to_s.downcase.split(/\s+/).reject(&:empty?)
+    noreserve = tokens.include?('noreserve')
+    stance    = (tokens & %w[offensive advance forward neutral guarded defensive]).first || 'offensive'
+
     if (@FRESH_WAND_CONTAINER)
-      until ((GameObj.right_hand.name.to_s + GameObj.left_hand.name.to_s) =~ /#{@WAND[$bigshot_wand].split(' ').join('.*?')}/i)
+      fput("reserve list") if GameObj.reserve.nil?
+      wand_obj = nil
+
+      loop do
+        wand_obj = [GameObj.right_hand, GameObj.left_hand, *GameObj.reserve.to_a].compact.find { |o| o.name.to_s =~ /#{@WAND[$bigshot_wand].split(' ').join('.*?')}/i }
+        break if wand_obj
+
         result = dothistimeout("get #{@WAND[$bigshot_wand]} from my #{@FRESH_WAND_CONTAINER}", 3, /You (?:remove|slip|slide)|Get what/)
         if (result =~ /Get what/)
           fput("rub my #{@FRESH_WAND_CONTAINER}")
@@ -4869,9 +4942,12 @@ class Bigshot
         end
       end
 
+      if !noreserve && [GameObj.right_hand, GameObj.left_hand].compact.any? { |o| o.id == wand_obj.id }
+        fput("reserve ##{wand_obj.id}")
+      end
+
       change_stance(stance)
-      # result = get_res("wave my #{@WAND[$bigshot_wand]} at ##{target.id}", /d100|You hurl|is already dead|You do not see that here|You are in no condition|I could not find/)
-      result = get_res("wave my #{@WAND[$bigshot_wand]}", /d100|You hurl|is already dead|You do not see that here|You are in no condition|I could not find/)
+      result = get_res("wave ##{wand_obj.id}", /d100|You hurl|is already dead|You do not see that here|You are in no condition|I could not find|What were you referring to/)
       change_stance(@HUNTING_STANCE)
 
       if (result =~ /You are in no condition/)
@@ -4879,6 +4955,8 @@ class Bigshot
         $bigshot_should_rest = true
         $rest_reason = "Too injured to wave wands!"
         return
+      elsif result =~ /What were you referring to/
+        fput('reserve list')
       end
     else
       message("yellow", "ERROR: Wandolier command called but fresh wand container not defined.")
@@ -4920,6 +4998,7 @@ class Bigshot
     return unless Spell[515].affordable?
     return if Effects::Buffs.active?("Rapid Fire") && Effects::Buffs.time_left("Rapid Fire") > 0.05
     return if Effects::Cooldowns.active?("Rapid Fire Recovery") && ignore.to_s.empty?
+    return unless (Time.now > Spell[515].last_cast + 1.5)
 
     waitrt?
     waitcastrt?
@@ -5388,20 +5467,25 @@ class Bigshot
   def cmd_tether(npc, recast_on_transfer = false)
     debug_msg(@DEBUG_COMMANDS, "cmd_tether")
 
-    return if npc.status =~ /dead|gone/
-    return unless GameObj.targets.any? { |s| s.id == npc.id }
-    return unless Spell[706].known? and Spell[706].affordable?
-
     complete_line = /dissolve into black mist/
     broken_line = /^You struggle to maintain control of the dark force, but you feel it break away\!|^You feel your connection to the dark presence fade away\./
     tether_transferred = /^As the signs of life fade from an? [\w\s\-]+, the tenebrous chains binding [\w\s\-]+ begin to vibrate and emit a sinister thrum that emanates through the surrounding area\.$/
 
-    waitrt?
-    waitcastrt?
-    time_out = Time.now + 12
-    result = Spell[706].force_incant(nil, /dissolve into black mist\./)
-    return if result =~ complete_line
+    attempts = 0
+    loop do
+      return if npc.status =~ /dead|gone/
+      return unless GameObj.targets.any? { |s| s.id == npc.id }
+      return unless Spell[706].known? and Spell[706].affordable?
+      waitrt?
+      waitcastrt?
+      result = Spell[706].force_incant(nil, /dissolve into black mist\./)
+      return if result =~ complete_line
+      break unless result =~ /Spell Hindrance/i
+      attempts += 1
+      return if attempts >= 5
+    end
 
+    time_out = Time.now + 12
     spell_complete = false
 
     Thread.new do
@@ -6135,6 +6219,7 @@ class Bigshot
       @RETURN_WAYPOINT_IDS.each { |room| go2(room.to_i) }
       go2(@RESTING_ROOM_ID)
     else
+      @followers.add_event(:UNHIDE)
       @followers.add_event(:FOLLOW_NOW)
       Lich::Gemstone::Group.members.each do |pc|
         if pc.status =~ /sitting|^lying|prone/ && pc.status !~ /dead/
@@ -6498,13 +6583,14 @@ class Bigshot
     loop do
       break if Script.paused?(script_ran.name)
       break if !Script.running?(script_ran.name)
+      break if $bigshot_should_rest
       sleep 0.1
     end
 
     box_in_hand = [GameObj.right_hand, GameObj.left_hand].find { |i| i.type =~ /box/ }
-    if Script.paused?(script_ran.name) && box_in_hand
+    if (Script.paused?(script_ran.name) && box_in_hand) || (Script.running?(script_ran.name) && $bigshot_should_rest)
       $bigshot_should_rest = true
-      $rest_reason = "Box in hand, couldn't store"
+      $rest_reason = "Box in hand, couldn't store" if box_in_hand
       Script.kill(script_ran.name)
     end
   end
@@ -6595,6 +6681,7 @@ class Bigshot
   def single_stop()
     debug_msg(@DEBUG_SYSTEM, "single_stop")
 
+    change_stance(@WANDER_STANCE)
     Script.self.kill
     sleep 0.5
   end
@@ -7075,7 +7162,7 @@ class Bigshot
 
     rest_checks.each do |check, reason|
       if check.call
-        $rest_reason = reason
+        $rest_reason = reason if $rest_reason.nil? || $rest_reason&.empty?
         $bigshot_status = :resting
         return $rest_reason
       end
@@ -7308,6 +7395,7 @@ class Bigshot
 
       if (!sign.active? && sign.affordable?)
         next if (Stats.prof == "Bard" && !(Char.mana >= (bard_renewal + sign.mana_cost)))
+        next unless Time.now > sign.last_cast + 1.5
         loop do
           result = sign.cast
           break if (result.to_s !~ /Spell Hindrance/ || !sign.affordable? || !(Char.mana >= (bard_renewal + sign.mana_cost)) || dead?)
@@ -7440,8 +7528,8 @@ class Bigshot
       wait_while { !@followers.looting_done }
       $looting_inactive = true
 
-      # Final room loot by leader for any missed items by follower
-      if @FINAL_LOOT && leading? && !solo? && bigclaim?
+      # Final room loot by leader for any missed items by follower, dropped by poofed creatures, or left behind by other players in area
+      if @FINAL_LOOT && leading? && bigclaim?
         loot()
         $looting_inactive = true
       end
@@ -8178,6 +8266,8 @@ elsif (Script.current.vars[1] =~ /tail|follow|link/i)
         bs.group_do(event.cmd_input)
       elsif (event.type == :PUBLIC_SEND)
         echo "SENT: #{bs.public_send(event.cmd_input) if bs.respond_to? event.cmd_input}"
+      elsif (event.type == :UNHIDE)
+        fput("unhide") if hidden? || invisible?
       end
     rescue
       fput 'leave group'

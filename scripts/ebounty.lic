@@ -10,13 +10,41 @@
           game: Gemstone
           tags: bounty, adventure's guild, advguild, bounties
       required: Lich >= 5.12.10
-       version: 1.9.1
+       version: 1.11.0
 
   Version Control:
   Major_change.feature_addition.bugfix
-  v1.9.1 (2025-01-18)
+  v1.11.0 (2026-06-07)
+    - cap bandit/location crawl area at 100 rooms (Task::MAX_CRAWL_ROOMS)
+    - add Task.limit_crawl_area BFS to select a contiguous region from the nearest room
+    - excluded location rooms beyond the cap are added to location_boundaries automatically
+  v1.10.1 (2026-05-25)
+    - fix for forage_find to use distance calc of 90 for nearest only
+    - fix for no forageable item found when foraging in rift due to inside/outside rooms changing
+  v1.10.0 (2026-04-16)
+    - add support to use alternative BOUNTY text with ;ebounty forage bounty "BOUNTY output here"
+    - fix new mushroom PnC issues not calculating proper amounts in forage_bounty
+  v1.9.7 (2026-03-01)
+    - bugfix expedite vouchers when already ready to get new task
+  v1.9.6 (2026-02-17)
+    - bugfix to not try searching SG for taskmaster when already in room
+  v1.9.5 (2026-02-06)
+    - bugfix in forage_bounty when using optional location in CLI argument
+  v1.9.4 (2026-02-04)
+    - optimize location_list finding in forage_find room logic
+  v1.9.3 (2026-02-04)
+    - bugfix in forage_find room
+  v1.9.2 (2026-01-27)
+    - add CLI support for ;ebounty forage bounty
+    - add CLI support for ;ebounty forage "herb" <qty> "location"
+    - bugfix in heirloom_search and forage_bounty to use Claim.mine? instead of checkpcs
+    - anchor ending gem names in search functions to prevent false matching on other items
+    - fix resting spot for SG shattered
+    - fix forage tag in starting room crash
+    - fix between script(s) added erroneous commas between script parameters
+  v1.9.1 (2026-01-18)
     - bugfix for running gem tracking script
-  v1.9.0 (2025-01-08)
+  v1.9.0 (2026-01-08)
     - added support for ranger track
   v1.8.1 (2025-12-24)
     - added option to regroup before quiting if started in group
@@ -642,7 +670,7 @@ module EBounty
     scripts.split(/,\s*/).each do |i|
       tokens = i.split(/\s+/)
       if (tokens.size > 1)
-        Script.run(tokens[0], tokens[1..-1].join(", "))
+        Script.run(tokens[0], tokens[1..-1].join(" "))
       else
         Script.run(tokens[0])
       end
@@ -997,15 +1025,15 @@ module EBounty
       )
 
       @forage_result = Regexp.union(
+        /^You begin to forage around when suddenly you feel a burning sensation in your hand\.$/,
+        /^You begin to forage around when your hand comes into contact with something that stabs you in the finger\.$/,
         /^You forage/,
+        /^You fumble about so badly in your search that you can only hope no one was watching you\.$/,
         /^You make so much noise that only the dead would not notice you thrashing about in your unsuccessful search\.$/,
         /^You stumble about in a fruitless attempt at foraging\.$/,
         /you are unable to find anything useful/,
-        /^As you carefully forage around you (can find no hint|see no evidence) of what you are looking for(?: right now, though you are fairly certain this is where it can be found)?\./,
-        /^You begin to forage around when your hand comes into contact with something that stabs you in the finger\.$/,
+        /^As you carefully forage around you (?:can find no (?:hint|trace)|see no evidence) of what you are looking for(?: right now, though you are fairly certain this is where it can be found)?\.(?:  You briefly wonder if it could even thrive in this place\.)?/,
         /^As you forage around you suddenly feel a sharp pain/,
-        /^You begin to forage around when suddenly you feel a burning sensation in your hand\.$/,
-        /^You fumble about so badly in your search that you can only hope no one was watching you\.$/
       )
 
       @forage_injury = Regexp.union(
@@ -1027,7 +1055,7 @@ module EBounty
         "Wehnimer's Landing" => 'u7120',
         'Zul Logoth'         => 'u13006016',
         'Cold River'         => 'u7503205',
-        "Contempt"           => 'u7150608',
+        "Contempt"           => "#{XMLData.game.eql?('GSF') ? 'u7150607' : 'u7150608'}",
       }
 
       resting_keys = [
@@ -1065,8 +1093,12 @@ module EBounty
         "u7120"     => @settings[:landing_resting],     # Wehnimer's Landing
         "u13006016" => @settings[:zul_resting],         # Zul Logoth
         'u7503205'  => @settings[:hw_resting],          # Hinterwilds
-        'u7150608'  => @settings[:contempt_resting],    # Sailor's Grief
       }
+      if XMLData.game.eql?('GSF')
+        @resting_spots['u7150607'] = @settings[:contempt_resting]  # Sailor's Grief Shattered
+      else
+        @resting_spots['u7150608'] = @settings[:contempt_resting]  # Sailor's Grief
+      end
     end
   end
 
@@ -2071,7 +2103,7 @@ module EBounty
         bounty_eval += %Q{ || !!(count = 0;EBounty.data.containers.each{|i| i.contents.each{ |k| if k.name =~ /bundle of #{EBounty.data.bundle_skin}/ && !EBounty.data.bundle_skin.to_s.empty? && !hidden?; lines = Lich::Util.quiet_command_xml("measure #"+k.id.to_s, /You glance through/);count += lines.sum { |l| l.scan(/count a total of (\\d+) <a exist/).flatten.map(&:to_i).sum };end;};};count >= EBounty.data.remaining_skins.to_i && @CORRECT_PERCENT_MIND >= EBounty.data.complete_mind)}
         bounty_eval += %Q{ || !!(j=0;EBounty.data.containers.each{|i| j += i.contents.count{|l| l.name =~ /#{EBounty.data.skin}/i && !EBounty.data.skin.to_s.empty?}.to_i }; j >= EBounty.data.remaining_skins.to_i && @CORRECT_PERCENT_MIND >= EBounty.data.complete_mind)}
       elsif checkbounty =~ /The gem dealer/
-        bounty_eval += %Q{ || !!(t=0;EBounty.data.containers.each{|k| t += k.contents.count{|v| v.name =~ /#{EBounty.data.gem.strip}/i && !EBounty.data.gem.to_s.empty?}.to_i}; t>= EBounty.data.remaining_gems.to_i && @CORRECT_PERCENT_MIND >= EBounty.data.complete_mind)}
+        bounty_eval += %Q{ || !!(t=0;EBounty.data.containers.each{|k| t += k.contents.count{|v| v.name =~ /#{EBounty.data.gem.strip}$/i && !EBounty.data.gem.to_s.empty?}.to_i}; t>= EBounty.data.remaining_gems.to_i && @CORRECT_PERCENT_MIND >= EBounty.data.complete_mind)}
       end
 
       UserVars.op['bounty_eval'] = bounty_eval
@@ -2184,7 +2216,7 @@ module EBounty
           EBounty.msg("debug", "scripts: #{i}")
           tokens = i.split(/\s+/)
           if (tokens.size > 1)
-            Script.run(tokens[0], tokens[1..-1].join(", "))
+            Script.run(tokens[0], tokens[1..-1].join(" "))
           else
             Script.run(tokens[0])
           end
@@ -2260,6 +2292,12 @@ module EBounty
   end
 
   module Task
+    # Maximum number of rooms the crawler will hunt within a single location.
+    # Larger locations are capped to a contiguous region of this size, seeded
+    # from the room nearest the character; location rooms beyond the cap are
+    # treated as boundaries so the crawler does not wander past them.
+    MAX_CRAWL_ROOMS = 100 unless defined?(MAX_CRAWL_ROOMS)
+
     def self.bounty_check(repeat: false)
       EBounty.msg("debug", " #{__method__} | caller: #{caller[0]} | checkbounty: #{checkbounty}")
 
@@ -2506,6 +2544,8 @@ module EBounty
               ask_count += 1
             elsif result =~ /You have already been assigned a task/
               return
+            elsif result =~ /I'm ready to assign you a new task/ && type.eql?("expedite")
+              return
             end
             EBounty.wait_rt
           end
@@ -2528,44 +2568,42 @@ module EBounty
     def self.find_taskmaster
       EBounty.msg("debug", " #{__method__} | caller: #{caller[0]}")
 
-      unless Room.current.tags.include?('advguild')
+      sailors_grief_locations = [
+        # On Deck
+        7150601, 7150602, 7150603, 7150604, 7150605,
+        7150606, 7150607, 7150608, 7150609, 7150610,
+        # Below Deck
+        7150611, 7150612, 7150613, 7150614, 7150615,
+        7150616, 7150617, 7150621, 7150622
+      ]
+
+      current_room = Room.current.uid.first
+
+      unless Room.current.tags.include?('advguild') || sailors_grief_locations.include?(current_room)
         EBounty.go2('advguild')
         EBounty.wait_rt
+        current_room = Room.current.uid.first
       end
 
-      case Room.current.uid.first
-      when 7503207
-        return "Halfwhistle"
-      when 7150606
-        locations = [
-          # On Deck
-          "u7150601", "u7150602", "u7150603", "u7150604", "u7150605",
-          "u7150606", "u7150607", "u7150608", "u7150609", "u7150610",
-          # Below Deck
-          "u7150611", "u7150612", "u7150613", "u7150614", "u7150615",
-          "u7150616", "u7150617", "u7150621", "u7150622"
-        ]
+      return "Halfwhistle" if current_room == 7503207
+      return "Taskmaster" unless sailors_grief_locations.include?(current_room)
 
-        3.times do
-          locations.each do |spot|
-            EBounty.go2(spot)
-            if GameObj.npcs.any? { |npc| npc.name =~ /Seldit/i }
-              return "Seldit"
-            end
+      # We're on Sailor's Grief - search for Seldit
+      return "Seldit" if GameObj.npcs.any? { |npc| npc.name =~ /Seldit/i }
 
-            echo "Looking for the lousy First Mate Seldit in #{spot}"
-          end
+      3.times do
+        sailors_grief_locations.each do |spot|
+          EBounty.go2("u#{spot}")
+          return "Seldit" if GameObj.npcs.any? { |npc| npc.name =~ /Seldit/i }
+          echo "Looking for the lousy First Mate Seldit in #{spot}"
         end
-
-        # Still here, then we didn't find Seldit
-        EBounty.msg("yellow", "Searched the boat 3 times and couldn't find Seldit")
-        EBounty.msg("yellow", "Please report this to EO")
-        EBounty.msg("yellow", "Rooms searched: #{locations.join(', ')}")
-        EBounty.exit_script
-
-      else
-        return "Taskmaster"
       end
+
+      # Still here, then we didn't find Seldit
+      EBounty.msg("yellow", "Searched the boat 3 times and couldn't find Seldit")
+      EBounty.msg("yellow", "Please report this to EO")
+      EBounty.msg("yellow", "Rooms searched: #{sailors_grief_locations.join(', ')}")
+      EBounty.exit_script
     end
 
     def self.find_npc(npc_names)
@@ -2707,6 +2745,13 @@ module EBounty
         EBounty.exit_script
       end
 
+      location_start = Room.current.find_nearest(location_list)
+
+      if location_list.size > MAX_CRAWL_ROOMS
+        EBounty.msg("debug", " find_location: capping #{location_list.size} location rooms to #{MAX_CRAWL_ROOMS}")
+        location_list = limit_crawl_area(location_start, location_list)
+      end
+
       EBounty.msg("debug", " find_location: location_list - #{location_list}")
       location_list.each { |id|
         Room[id].wayto.keys.each { |room|
@@ -2716,8 +2761,36 @@ module EBounty
         }
       }
       EBounty.msg("debug", "Bandits: boundary_list - #{boundary_list}")
-      EBounty.data.location_start = Room.current.find_nearest(location_list).to_s
+      EBounty.data.location_start = location_start.to_s
       EBounty.data.location_boundaries = boundary_list.join(",")
+    end
+
+    # Breadth-first crawl from +start_id+, restricted to rooms in +location_list+,
+    # returning a contiguous subset of at most +max_rooms+ room ids. Used to cap
+    # large hunting locations to a manageable, connected region around the start.
+    # @param start_id [Integer, String] seed room id (nearest location room)
+    # @param location_list [Array<Integer>] full set of room ids within the location
+    # @param max_rooms [Integer] hard cap on the number of rooms returned
+    # @return [Array<Integer>] contiguous subset of +location_list+, size <= max_rooms
+    def self.limit_crawl_area(start_id, location_list, max_rooms = MAX_CRAWL_ROOMS)
+      selected = []
+      queued = [start_id.to_i]
+
+      until queued.empty? || selected.size >= max_rooms
+        current = queued.shift
+        next if selected.include?(current)
+
+        selected.push(current)
+        Room[current].wayto.keys.each { |room|
+          neighbor = room.to_i
+          next if selected.include?(neighbor) || queued.include?(neighbor)
+          next unless location_list.include?(neighbor)
+
+          queued.push(neighbor)
+        }
+      end
+
+      selected
     end
 
     def self.bandit_bounty(location)
@@ -2908,71 +2981,65 @@ module EBounty
     end
 
     def self.forage_find(herb, herb_fix, location)
-      EBounty.msg("debug", " #{__method__} | caller: #{caller[0]}")
+      EBounty.msg("debug", " #{__method__} | herb: #{herb} | location: #{location} | caller: #{caller[0]}")
 
-      case herb
-      when /ayana (weed|lichen|berry|root)/
-        herb = 'ayana leaf'
-      when /ayana'al (weed|lichen|berry|root)/
-        herb = "ayana'al leaf"
-      when 'trollear mushroom'
-        herb = 'trollfear mushroom'
-      end
+      # Normalize herb names
+      herb = case herb
+             when /ayana (weed|lichen|berry|root)/
+               'ayana leaf'
+             when /ayana'al (weed|lichen|berry|root)/
+               "ayana'al leaf"
+             when 'trollear mushroom'
+               'trollfear mushroom'
+             else
+               herb
+             end
 
       herb_alt = herb.gsub(/^some /, "")
+      herb_pattern = /#{Regexp.escape(herb)}|#{Regexp.escape(herb_alt)}|#{Regexp.escape(herb_fix)}/
 
-      # Grab all the rooms that mostly match.
-      location_list = []
-      Room.list.find_all do |r|
-        if r.tags.any? { |tag| (tag.end_with? herb) || ((herb.start_with? tag) && herb =~ /ayana/) || (herb.end_with? tag) }
-          location_list.push(r.id)
+      # Find rooms with matching herb tags
+      location_list = Room.list.select do |r|
+        r.tags.any? { |tag| tag.end_with?(herb) || (herb.start_with?(tag) && herb =~ /ayana/) || herb.end_with?(tag) }
+      end.map(&:id)
+
+      # Filter to rooms where tags actually match the herb pattern
+      location_list.select! do |room_id|
+        Room[room_id].tags.any? { |tag| tag =~ herb_pattern }
+      end
+
+      # Apply location filter if not "nearest"
+      if !location.eql?("nearest")
+        location_pattern = /#{Regexp.escape(location.strip)}/
+        location_list.select! do |room_id|
+          Room[room_id].location.to_s =~ location_pattern
         end
       end
 
-      # Reject the rooms with herbs that don't match
-      location_list = location_list.reject do |room|
-        !Room[room].tags.any? { |tag| tag =~ /#{herb}|#{herb_alt}|#{herb_fix}/ }
-      end
-
-      # This is for CLI herb foraging
-      # ;ebounty forage "<type of herb>" <number to find>  for example ;ebounty forage "some acantha leaf" 3
-      if location == "nearest"
-        _previous, shortest_distances = Room.current.dijkstra
-        location_list.delete_if { |room_id| shortest_distances[room_id].nil? }
-        location_list = location_list.sort { |a, b| shortest_distances[a] <=> shortest_distances[b] }
-
-        location_list = location_list.first(10)
-
-        location_list.each do |room|
-          if Room.current.path_to(room) == nil
-            location_list.delete(room)
-          else
-            travel = Map.estimate_time(Room.current.path_to(room))
-            location_list.delete(room) if travel.to_i > 90
-          end
-        end
-
-        return location_list
-      end
-
-      # Reject the locations that don't match
-      location_list = location_list.reject do |room|
-        Room[room].location.to_s !~ /#{location.strip}/
-      end
-
+      # Calculate distances and filter by reachability and distance
       _previous, shortest_distances = Room.current.dijkstra
-      location_list.delete_if { |room_id| shortest_distances[room_id].nil? }
-      location_list = location_list.sort { |a, b| shortest_distances[a] <=> shortest_distances[b] }
 
-      location_list.each do |room|
-        travel = Map.estimate_time(Room.current.path_to(room))
-        location_list.delete(room) if travel.to_i > 90
-      end
+      location_list = location_list.select do |room_id|
+        distance = shortest_distances[room_id]
+        distance && (!location.eql?("nearest") || distance <= 90)
+      end.sort_by { |room_id| shortest_distances[room_id] }
 
-      return location_list
+      # Limit to 10 nearest if location is "nearest"
+      location_list = location_list.first(10) if location.eql?("nearest")
+
+      location_list
     end
 
-    def self.forage_bounty(herb, quantity, location = "nearest")
+    def self.find_herb_stow_list(herb)
+      herb = "white hook mushroom"     if herb == "white mushroom"
+      herb = "black trafel mushroom"   if herb == "trafel mushroom"
+      herb = "withered black mushroom" if herb == "withered mushroom"
+      herb = "soft white mushroom"     if herb == "soft mushroom"
+
+      StowList.stow_list[:default].contents.find_all { |item| item.name =~ /#{herb}/ || ((herb.start_with? item.name) && (herb =~ /ayana/)) }
+    end
+
+    def self.forage_bounty(herb, quantity, location = "nearest", bounty_bypass: false)
       EBounty.msg("debug", " #{__method__} | caller: #{caller[0]} | herb: #{herb} | quantity: #{quantity} | location: #{location}")
 
       herb = herb == "trollear mushroom" ? "trollfear mushroom" : herb
@@ -2981,9 +3048,9 @@ module EBounty
       creatures = []
 
       current_room = Room.current.id
-      amount = StowList.stow_list[:default].contents.find_all { |i| i.name =~ /#{herb}/ }.length
+      amount = find_herb_stow_list(herb).length
 
-      if location == "nearest"
+      if location.eql?("nearest") || bounty_bypass
         forage_item = herb
         if (amount >= quantity.to_i)
           EBounty.msg("yellow", " Default container has #{amount} #{amount > 1 ? forage_item + 's' : forage_item}. Quantity requested: #{quantity.to_i}")
@@ -3001,8 +3068,8 @@ module EBounty
       location_list = Task.forage_find(herb, forage_item, location)
 
       unless location_list.length.positive?
-        echo "No #{herb} found at #{location}" if location != "nearest"
-        echo "No #{herb} found" if location == "nearest"
+        echo "No #{herb} found at #{location}" if !location.eql?("nearest")
+        echo "No #{herb} found" if location.eql?("nearest")
         EBounty.exit_script
       end
 
@@ -3014,7 +3081,7 @@ module EBounty
       location_list.each do |room|
         EBounty.go2(room)
 
-        unless (GameObj.targets.count.positive? && EBounty.data.settings[:forage_options].include?("run")) || checkpcs || GameObj.loot.any? { |i| i.name =~ /black void/ }
+        unless (GameObj.targets.count.positive? && EBounty.data.settings[:forage_options].include?("run")) || !Claim.mine? || GameObj.loot.any? { |i| i.name =~ /black void/ }
 
           empty_hands
 
@@ -3092,14 +3159,14 @@ module EBounty
 
               EBounty.msg("debug", "forage_bounty: herb - #{herb} | location - #{location} | quantity - #{quantity} | Default sack: #{StowList.stow_list[:default].inspect} | contents: #{StowList.stow_list[:default].contents}")
 
-              amount = StowList.stow_list[:default].contents.find_all { |i| i.name =~ /#{forage_item}/ }.length
+              amount = find_herb_stow_list(forage_item).length
               EBounty.msg("yellow", " #{amount} of #{quantity.to_i} #{amount > 1 ? forage_item + 's' : forage_item} foraged")
               break if amount >= quantity.to_i
 
             elsif forage_result =~ EBounty.data.forage_injury
               EBounty.wait_rt
               Spell[114].cast if Spell[114].known? and Spell[114].affordable? && !Map.current.tags.include?("meta:nomagic")
-            elsif forage_result.nil? || (forage_result =~ /^As you carefully forage around you (can find no hint|see no evidence) of what you are looking for(?: right now, though you are fairly certain this is where it can be found)?\./)
+            elsif forage_result.nil? || (forage_result =~ /^As you carefully forage around you (?:can find no (?:hint|trace)|see no evidence) of what you are looking for(?: right now, though you are fairly certain this is where it can be found)?\.(?:  You briefly wonder if it could even thrive in this place\.)?/)
               break
             elsif forage_result =~ /^As you forage around, you notice that someone has been foraging here recently and you are unable to find anything useful\./
               unless Effects::Cooldowns.active?("Nature's Bounty Foraging") || Skills.slblessings < 15 || !Spell[604].affordable? || !Spell[604].known? || !EBounty.data.settings[:forage_options].include?("use_604evoke") || Map.current.tags.include?("meta:nomagic")
@@ -3112,7 +3179,7 @@ module EBounty
             if (XMLData.injuries.any? { |_a, h| h['wound'] > 1 || h['scar'] > 1 } || Char.percent_health < 70) && !EBounty.data.settings[:skip_healing]
               return_room = Room.current.id
               EBounty.go2_rest
-              if location == 'nearest'
+              if location.eql?('nearest') || bounty_bypass
                 EBounty.check_health
               else
                 Task.prep
@@ -3134,8 +3201,7 @@ module EBounty
             end
           end
 
-          break if StowList.stow_list[:default].contents.find_all { |i| i.name =~ /#{forage_item}/ }.length >= quantity.to_i
-
+          break if find_herb_stow_list(forage_item).length >= quantity.to_i
         end
       end
 
@@ -3144,10 +3210,10 @@ module EBounty
         fput "stop 1011" if lines.grep(/Song of Peace/).any?
       end
 
-      if location != "nearest"
-        Task.forage_return
-      else
+      if location.eql?("nearest") || bounty_bypass
         EBounty.go2(current_room)
+      else
+        Task.forage_return
       end
     end
 
@@ -3167,7 +3233,7 @@ module EBounty
       herb = herb.gsub(/^some /, "")
 
       EBounty.open_container(StowList.stow_list[:default])
-      herbs = StowList.stow_list[:default].contents.find_all { |i| (i.name.end_with? herb) || ((herb.start_with? i.name) && (herb =~ /ayana/)) }
+      herbs = find_herb_stow_list(herb)
 
       if herbs.length.positive?
         EBounty.go2(room)
@@ -3213,7 +3279,7 @@ module EBounty
       herb = herb.gsub(/^some /, "")
 
       EBounty.open_container(StowList.stow_list[:default])
-      herbs = StowList.stow_list[:default].contents.find_all { |i| (i.name.end_with? herb) || ((herb.start_with? i.name) && (herb =~ /ayana/)) }
+      herbs = find_herb_stow_list(herb)
 
       if herbs.length.positive?
 
@@ -3288,7 +3354,7 @@ module EBounty
       EBounty.data.containers.each { |container|
         EBounty.open_container(container)
         container.contents.each { |item|
-          if item.name =~ /#{EBounty.data.gem}/
+          if item.name =~ /#{EBounty.data.gem}$/
             count += 1
           end
         }
@@ -3362,7 +3428,7 @@ module EBounty
       EBounty.change_stance(100)
 
       loop {
-        unless (GameObj.targets.count.positive? && EBounty.data.settings[:heirloom_options].include?("run")) || checkpcs || GameObj.loot.each { |i| i.name =~ /black void/ }
+        unless (GameObj.targets.count.positive? && EBounty.data.settings[:heirloom_options].include?("run")) || !Claim.mine? || GameObj.loot.each { |i| i.name =~ /black void/ }
           unless Map.current.tags.include?("meta:nomagic")
             if Stats.prof =~ /Cleric|Empath/i && EBounty.data.settings[:heirloom_options].include?("use_213")
               lines = EBounty.get_command("sense", /You open your soul to the lesser/, silent: true, quiet: true)
@@ -3675,14 +3741,43 @@ when 'remove'
   EBounty::Task.bounty_remove(true)
   EBounty.go2(EBounty.data.start_room)
 when 'forage'
-  if Script.current.vars[2].nil? || Script.current.vars[3].nil?
-    EBounty.msg "error", ' Proper syntax: ;ebounty forage "herb to find" <how many>'
+  if Script.current.vars[2].nil? || (Script.current.vars[3].nil? && Script.current.vars[2] != 'bounty')
+    EBounty.msg "error", ' Please use one of the following proper syntax for the forage option:'
+    EBounty.msg "error", ' To search closest 10 rooms for foraged herb:'
+    EBounty.msg "error", ' Autodetect Bounty:     ;ebounty forage bounty'
+    EBounty.msg "error", ' Manual Bounty:         ;ebounty forage bounty "Output here from BOUNTY output"'
+    EBounty.msg "error", ' Closest 10 Rooms:      ;ebounty forage "herb to find" <how many>'
+    EBounty.msg "error", ' All Rooms At Location: ;ebounty forage "herb to find" <how many> "location to search"'
     exit
   end
   return_room = Room.current.id
   EBounty.load(EBounty.load_profile)
   EBounty.set_variables(load_profile: false)
-  EBounty::Task.forage_bounty(Script.current.vars[2], Script.current.vars[3].to_i)
+  if Script.current.vars[2] == 'bounty'
+    bounty_info =
+      if Script.current.vars[3].to_s.strip.empty?
+        Bounty.task
+      else
+        begin
+          Bounty::Task.new(Bounty::Parser.parse(Script.current.vars[3]))
+        rescue StandardError => e
+          EBounty.msg "error", " Unable to parse manual BOUNTY text: #{e.message}"
+          exit
+        end
+      end
+
+    unless bounty_info&.herb?
+      EBounty.msg "error", ' Started ebounty with ;ebounty forage bounty'
+      EBounty.msg "error", ' But you have no herb bounty!'
+      EBounty.msg "error", " #{bounty_info.inspect}"
+      exit
+    end
+    EBounty::Task.forage_bounty(bounty_info.herb, bounty_info.number, bounty_info.area, bounty_bypass: !Script.current.vars[3].to_s.strip.empty?)
+  elsif Script.current.vars[4].is_a?(String)
+    EBounty::Task.forage_bounty(Script.current.vars[2], Script.current.vars[3].to_i, Script.current.vars[4], bounty_bypass: true)
+  else
+    EBounty::Task.forage_bounty(Script.current.vars[2], Script.current.vars[3].to_i)
+  end
   EBounty.go2(return_room)
 when /location/i
   if Bounty.task.requirements[:area].nil?
