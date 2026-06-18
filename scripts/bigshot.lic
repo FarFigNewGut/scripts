@@ -8,7 +8,7 @@
   contributors: SpiffyJr, Tillmen, Kalros, Hazado, Tysong, Athias, Falicor, Deysh, Nisugi
           game: Gemstone
           tags: hunting, bigshot, combat
-       version: 5.13.0
+       version: 5.14.0
       required: Lich >= 5.17.1
 
   Setup Instructions: https://gswiki.play.net/Script_Bigshot
@@ -17,6 +17,15 @@
 
   Version Control:
   Major_change.feature_addition.bugfix
+  v5.14.0  (2026-06-17)
+    - add new sacrifice command
+    - bugfix for creature escape result regex check
+  v5.13.3  (2026-06-16)
+    - bugfix for looting when in resting status
+  v5.13.2  (2026-06-15)
+    - bugfix in run_script to only do box_in_hand if hunting
+  v5.13.1  (2026-06-14)
+    - bugfix in resonance cmd
   v5.13.0  (2026-05-17)
     - add new resonance command for casting bolts
     - add new UNHIDE event to allow for unhiding before fogging
@@ -3370,7 +3379,7 @@ class Bigshot
     if (command =~ /^(incant)?\s?(\d+)\s?((?:open|closed)?\s?(?:cast|channel|evoke)?\s?(?:cast|channel|evoke)?\s?(?:open|closed)?\s?(?:acid|air|cold|earth|fire|lightning|steam|water)?)?.*$/i)
       cmd_spell(incant: $1, id: $2.to_i, extra: $3, target: npc)
     elsif (command =~ /^resonance\s+([\d\s]+)/i)
-      cmd_resonance_bolt($1)
+      cmd_resonance_bolt($1, npc)
     elsif (command =~ /^barrage|^flurry|^fury|^gthrusts|^pummel|^thrash/i)
       cmd_assault(npc, command)
     elsif (command =~ /^pindown|^cripple|^charge|^twinhammer|^dizzyingswing|^clash|^volley|^pulverize|^cyclone|^whirlwind|^wblade/i)
@@ -3458,6 +3467,8 @@ class Bigshot
       cmd_store($1)
     elsif (command =~ /^tether( recast)?/i)
       cmd_tether(npc, $1)
+    elsif (command =~ /^sacrifice/i)
+      cmd_sacrifice(npc)
     else
       return if $ambusher_here
 
@@ -4866,7 +4877,7 @@ class Bigshot
     end
   end
 
-  def cmd_resonance_bolt(ids)
+  def cmd_resonance_bolt(ids, npc)
     @last ||= nil
     debug_msg(@DEBUG_COMMANDS, "cmd_resonance_bolt | ids: #{ids} | last: #{@last}")
 
@@ -4875,7 +4886,7 @@ class Bigshot
     selected_spell = spell_options.sample
     return if selected_spell.nil?
 
-    cmd_spell(incant: true, id: selected_spell)
+    cmd_spell(incant: true, id: selected_spell, target: npc)
 
     @last = selected_spell
   end
@@ -5464,6 +5475,19 @@ class Bigshot
     }
   end
 
+  def cmd_sacrifice(target)
+    debug_msg(@DEBUG_COMMANDS, "cmd_sacrifice")
+    return unless Char.spirit >= 2
+    return if Effects::Cooldowns.active?("Sacrifice")
+
+    waitrt?
+    status = Lich::Util.issue_command("appraise ##{target.id}", /^The .+? is \w+ in size/, include_end: false, quiet: true, silent: true).last
+
+    if status =~ /enticingly frail/
+      fput("sacrifice ##{target.id}")
+    end
+  end
+
   def cmd_tether(npc, recast_on_transfer = false)
     debug_msg(@DEBUG_COMMANDS, "cmd_tether")
 
@@ -5757,8 +5781,8 @@ class Bigshot
     croak_scripts(["#{$current_script_name}"])
   end
 
-  def run_script(name, pause_bigshot = false, args = nil)
-    debug_msg(@DEBUG_SYSTEM, "run_script | name: #{name} | pause_bigshot: #{pause_bigshot} | args: #{args}")
+  def run_script(name, pause_bigshot = false, args = nil, looting: false)
+    debug_msg(@DEBUG_SYSTEM, "run_script | name: #{name} | pause_bigshot: #{pause_bigshot} | args: #{args} | looting: #{looting}")
 
     if Script.running.find { |s| s.name.downcase == name.downcase }.paused || Script.running?(name)
       Script.kill(name)
@@ -5769,7 +5793,7 @@ class Bigshot
     return if script_ran.nil?
     return unless script_ran.name.is_a?(String) && !script_ran.name.empty?
     if pause_bigshot
-      if name == @LOOT_SCRIPT && @BOX_IN_HAND
+      if looting && @BOX_IN_HAND
         looting_watch(script_ran)
       else
         wait_until { !Script.running?(script_ran.name) }
@@ -6556,7 +6580,7 @@ class Bigshot
     if (dead_npcs.empty? || dead_npcs.nil?) && !GameObj.loot.nil?
       waitrt?
       if (@LOOT_SCRIPT)
-        run_script(@LOOT_SCRIPT, true)
+        run_script(@LOOT_SCRIPT, true, looting: true)
       else
         bs_put "loot room"
       end
@@ -6568,7 +6592,7 @@ class Bigshot
         add_overkill()
 
         if (@LOOT_SCRIPT)
-          run_script(@LOOT_SCRIPT, true)
+          run_script(@LOOT_SCRIPT, true, looting: true)
         else
           bs_put "loot ##{i.id}"
           bs_put "loot room"
@@ -7761,7 +7785,7 @@ class Bigshot
     while checkroom(config[:room])
       waitrt?
       result = fput config[:attack_cmd]
-      break if result =~ /What were you referring to/
+      break if result.is_a?(String) && result =~ /What were you referring to/
     end
 
     if container
